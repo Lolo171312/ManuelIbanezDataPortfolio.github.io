@@ -1,0 +1,224 @@
+<!DOCTYPE HTML>
+<!--
+	Alpha by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>Atletico de Madrid Analysis</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="assets/css/main.css" />
+	</head>
+	<body class="is-preload">
+		<div id="page-wrapper">
+
+			<!-- Header -->
+				<header id="header">
+					<h1><a href="index.html">Manuel Ibáñez</a> | Portfolio</h1>
+					<nav id="nav">
+						<ul>
+							<li><a href="index.html">Home</a></li>
+						</ul>
+					</nav>
+				</header>
+
+			<!-- Main -->
+				<section id="main" class="container">
+					<header>
+						<h2>Atletico de Madrid Analysis</h2>
+						<p>Match analysis from 2009/10 to Present day using Python, SQL and Power BI</p>
+					</header>
+					<div class="box">
+						<span class="image featured"><img src="images/escudoAtleti.jpg" alt="" /></span>
+						<p>For this analysis, I aimed to obtain all the available results for <b>Atlético de Madrid</b>. The maximum amount of data I was able to find was thanks to the <a href="https://footballdatabase.com">Football Database</a> website, which contained all the team's <b>results from the 2009/2010 season up to the present day</b>. My objective for this project is divided into two main parts:<br>
+							Firstly, I wanted to <b>utilize data analysis tools to continue developing and improving my skills in the sector</b>. I used <b>Python</b> to extract the information from the webpage (web scraping), and thanks to <b>Pandas</b>, I was able to load all that information into a structured table and perform data cleaning. Once the table was clean, I used <b>SQL</b> to perform queries and obtain smaller tables with information that was easier to understand and from which valuable conclusions could be drawn. Finally, I chose to use <b>PowerBI</b> to give the analysis a visual touch and make the processed data quicker and simpler to comprehend.<br>
+							Secondly, <b>I wanted to take advantage of this project to answer questions</b> that, as a lifelong Atlético supporter, I was genuinely curious about. Some of these questions included the number of wins, draws, and losses in each season, in which season the team attacked or defended better, which teams we tend to beat most frequently, or the impact Diego Pablo Simeone has had on the club.<br>
+							All these questions will be answered throughout the different sections of this page, <b>alongside more technical explanations regarding the data retrieval and analysis process.</b></p>
+						<h3>Web Scraping</h3>
+						<p>The first step was to <b>transfer every Atletico result from the Football Database website into a data table</b> so it could be analyzed in later steps. To achieve this, I used the <b>requests</b> and <b>BeautifulSoup</b> libraries in Python.
+						The results table on Football Database was divided into 16 distinct pages, which meant the code had to navigate through each one. First, <b>I obtained the link for each page and stored them in a list</b> to then iterate over in a loop. I was able to extract these links from the page navigation bar buttons.
+						<pre>
+#Get every link from the navigation buttons panel
+links_bar = soups[0].find("ul", class_="pagination pagination-sm")
+link_buttons = links_bar.find_all('li')
+
+#Create a list with every url termination
+links = [link.find('a')['href'] for link in link_buttons]
+						</pre>
+						Once I had the links, <b>I fetched the HTML code for each of those pages</b> and stored the code in another list.
+						<pre>
+#Loop through every url termination (Starts at 1 because the first was already appended)
+for link in links[1:]:
+    #Determine the new url
+    url = base_url + link
+    #Requests the current url
+    page = requests.get(url)
+    #Append to the previoulsy requested pages
+    soups.append(BeautifulSoup(page.content, "html.parser"))
+						</pre>
+						Before starting to obtain the individual results, <b>I used the first table on the first page to get the column titles to create my new Pandas Data Frame</b>. I extracted these column titles from the first row of the table where they were indicated.<br>
+						Once the Data Frame was created with its titles, <b>I looped through the previously obtained HTML codes to access the results table on each page</b>. I traversed all the tables from all the pages, and having previously analyzed their structure, I knew how they were constructed to extract the following data points: Home Team, Away Team, Result, Season, and Competition.
+						<pre>
+data_index = 0
+for result_table in results_tables:
+    results = result_table.find_all('div', class_ = "club-gamelist-match")
+    for result in results[1:]:
+        result_data = [data.get_text() for data in result.find_all('a', class_="club-gamelist-match-info")]
+        for data in result.find_all('div'):
+            result_data.append(data.get_text())
+        df.loc[data_index] = result_data
+        data_index += 1
+						</pre>
+						Thanks to this entire process, I obtained my complete Data Frame, which would subsequently need to be cleaned and expanded.</p>
+						<h3>Data Cleaning process</h3>
+						<p>
+							Once I had the data, it was time to start the cleaning process. First of all, <b>I standardized the entries in the table</b>.<br> For example, in the <i>'Competition'</i> column, instead of having many different entries like: <i>'SpainLiga2020/21'</i>, <i>'SpainLiga2021/22'</i>, etc. I wanted to have just the name of each competition. So, I standardized that column to include only: <i>'Spain Liga'</i>, <i>'UEFA Champions League'</i> and <i>'UEFA Europa League'</i>.
+							<pre>
+#Standarize Competitions to be the same name regardless the Season
+#Define conditions
+conditions = [
+    df["Competition"].str.contains("Spain Liga BBVA", na=False),
+    df["Competition"].str.contains("UEFA Champions League", na=False),
+    df["Competition"].str.contains("UEFA Europa League", na=False),
+    df["Competition"].str.contains("FIFA Club World Cup", na=False),
+    df["Competition"].str.contains("UEFA Super Cup", na=False)
+]
+#Define the names I want for the competitions
+choices = [
+    "Spain Liga",
+    "UEFA Champions League",
+    "UEFA Europa League",
+    "FIFA Club World Cup",
+    "UEFA Super Cup"
+]
+#Make the change
+df["Competition"] = np.select(conditions, choices, default = "Other")
+							</pre>
+							Another example was the 'Date' field. The current format of the date was a <code>string</code>, so I converted it to a proper <code>Date/Time</code> format. This makes it much easier to analyze and filter by date later on.
+							<pre>
+#Set the Date column to date format (dd MM YYYY)
+df["Date"] = pd.to_datetime(df["Date"], format = '%d %B %Y')
+							</pre>
+							The other main thing I did in this step was to <b>engineer new columns based on existing ones to provide more data for analysis</b>. A key example was the match result. Initially, it was consolidated in one column like '3-0', '2-1', '5-2', etc., which wasn't useful for direct analysis. Therefore, I expanded that single column into two: one for the Home Team Score and the other for the Away Team Score.
+							<pre>
+#Split Score column to HomeScore and AwayScore
+df[["Home Score_Str", "Away Score_Str"]] = df["Score"].str.split('-', expand = True)
+#Set Home Score_Str and Away Score_Str to Ints
+df["Home Score"] = df["Home Score_Str"].astype(int)
+df["Away Score"] = df["Away Score_Str"].astype(int)
+#Drop Score, Home Score_Str and Away Score_Str columns
+df.drop(columns = ["Score", "Home Score_Str", "Away Score_Str"], inplace = True)
+							</pre>
+							After this process, I ended up with a clean and more complete table that looked like this:<br>
+							<span class="image fit"><img src="images/AtletiProject/FinalTable_Capture.png" alt="" /></span>
+							With this refined table, <b>I was able to export it to SQL so I could start creating interesting queries</b> to answer some of my research questions.
+						</p>
+						<h3>SQL Queries</h3>
+						<p>
+							In this step, I exported the processed table into MySQL. <b>My goal here was to create different queries to view the data I scraped in a more clear and valuable way</b>.Some expamples of the queries I did are the following ones:<br>
+							It is commonly said that Atlético de Madrid does not score many goals, so the first thing I did in SQL was to query the <b>number of goals scored per season</b> for comparative analysis.
+							<pre>
+/*Get the total count of goals per season and order it from more to less*/
+SELECT SUM(Atletico_Goals) as TotalGoals, Season FROM results
+GROUP BY Season
+ORDER BY TotalGoals DESC;
+							</pre>
+							Following that, <b>I calculated the average number of goals scored per match</b>, as I considered this metric to be more insightful than the raw number of total goals scored.
+							<pre>
+/*Calculate the Goal Average per Season*/
+SELECT AVG(Atletico_Goals) AS Avarage_Goals, Season FROM results
+GROUP BY Season
+ORDER BY Avarage_Goals DESC;
+							</pre>
+							Another important metric I wanted to check was the <b>total number of goals conceded (goals against) by Atlético</b>. This value makes it easy to assess the quality of the team's defense over the seasons.
+							<pre>
+/*Goals Against Atletico de Madrid*/
+SELECT SUM(Opponent_Goals) AS Goals_Against, 
+	CASE
+		WHEN Home_Team = "Atletico Madrid" THEN Away_Team
+        ELSE Home_Team
+    END AS Opponent
+FROM results
+GROUP BY Opponent
+ORDER BY Goals_Against DESC, Opponent DESC;
+							</pre>
+							A further relevant query I performed was <b>calculating the average results both before and after the arrival of Diego Pablo Simeone</b> to truly gauge the impact he had on the team's performance.
+							<pre>
+/*Avarage results Before and After Simeone*/
+SELECT
+	CASE
+		WHEN results.Date > '2011-12-1' THEN "After Simeone" ELSE "Before Simeone" /*Simeone started in Atletico at 1st December 2011*/
+    END AS Simeone,
+    COUNT(*) AS Total_Matches,
+    CAST(SUM(CASE WHEN Match_Status = 'Win' THEN 1 ELSE 0 END) AS FLOAT) * 100 / COUNT(*) AS Win_Percentage,
+    CAST(SUM(CASE WHEN Match_Status = 'Draw' THEN 1 ELSE 0 END) AS FLOAT) * 100 / COUNT(*) AS Draw_Percentage,
+    CAST(SUM(CASE WHEN Match_Status = 'Loss' THEN 1 ELSE 0 END) AS FLOAT) * 100 / COUNT(*) AS Loss_Percentage 
+    FROM results
+GROUP BY Simeone;
+							</pre>
+							Other relevant queries were executed as well and <b>can be seen in this project's GitHub repository</b> <i>(The button is at the bottom of this page)</i>.
+							Each query provided great insights and conclusions that will be presented in the <i>'Conclusion'</i> section.<br>
+							Nevertheless, <b>the results from these queries led me to PowerBI so I could create visual representations</b>, making those findings quicker and easier to understand.
+						</p>
+						<h3>PowerBI Visualization</h3>
+						<p>
+							Once I had executed all the queries in SQL, it was time to <b>create the PowerBI project to transform all the results and conclusions from the SQL tables into visualizations</b>.<br>
+							The way I managed my PowerBI project was by <b>creating just one page so the user can view the information all at once</b>. This technique is commonly known as a <b><i>'One-Pager' Dashboard</i></b>.<br>
+							At the <b>top area of the page</b>, you can see the title and some <b>key performance indicators (<i>KPIs</i>)</b> displayed in large cards (e.g., <i>Win Percentage</i>, <i>Average Goals Scored</i>, and the <i>Total Number of Analyzed Games</i>).<br>
+							Across the <b>middle area</b>, you can find <b>interactive slicers (buttons) to filter the data</b> shown on the page. These slicers allow the user to filter the data by Competition (<i>La Liga, Champions League, Europa League</i>) and by Match Location (<i>Atlético's Stadium or Away</i>).<br>
+							To the right, a <b>clustered column chart</b> is displayed with three bars per section. Each section represents a season (<i>from 2009 until today</i>), and each bar represents the <b>total count of wins, draws and losses</b>. Overlaid on this chart is a yellow line that represents the <b>average goal difference per match</b> (<i>Goals Scored minus Goals Conceded</i>). To the far right of the middle section, another <b>vertical column chart represents the average amount of wins, draws, and losses divided by Competition</b>, making it easy to identify in which competition Atlético performs best.<br>
+							Finally, at the <b>bottom of the page</b>, you can view information related to other teams. One <b>horizontal bar chart represents the five teams that have beaten Atlético the most</b>, the second <b>chart represents the teams that have been beaten by Atlético the most</b> and the final chart is a <b>scrollable table where you can see every individual result of Atlético against that specific opponent</b>.<br>
+							Here you can see the final view of the project:<br>
+							<span class="image fit"><img src="images/AtletiProject/PowerBI_Capture.png" alt="" /></span>
+							This view clearly showcases a lot of <b>valuable information from the last 16 seasons</b> of Atlético de Madrid.<br>
+							As I said before, <b>you can also manipulate that information</b> (<i>for example, to focus on a specific competition</i>) thanks to the filters in the middle area.<br>
+							<span class="image fit"><img src="images/AtletiProject/PowerBI_Filter_Capture.png" alt="" /></span>
+							With this final section, I believe I have covered all the important parts of a Data Analysis project, so let's jump into the conclusions section.
+						</p>
+						<h3>Conclusions</h3>
+						<p> To conclude this project, I want to detail my findings across two distinct areas: the Technical Project Outcome and the Data-Driven Insights about Atlético de Madrid.</p>
+							<h4><b>Technical Project Outcome</b></h4>
+							<p>This project has been genuinely helpful for my professional development. I have learned a great deal through each of the project's phases, and I feel significantly more confident in my technical Data Analysis skills. In my opinion, being able to <b>scrape data from a web source</b>, <b>clean and transform that data</b>, <b>analyze it efficiently with SQL</b>, and finally <b>represent those metrics visually in PowerBI</b> demonstrates a foundational understanding of the <b>Data Analytics workflow</b>. I look forward to continuing this learning journey and investigating with more near-future projects.</p>
+							<h4><b>Data-Driven Insights</b></h4>
+							<p>As a lifelong Atlético de Madrid supporter, I aimed to be as objective as possible and base my findings strictly on the obtained data.
+							The analysis confirms that Atlético de Madrid is a formidable football club; while perhaps not in the global top 5, <b>it is undoubtedly an important team in the European landscape</b>. The data clearly shows that <b>Diego Pablo Simeone is one of the most important figures in the club's history</b>. The column chart illustrating the total count of victories, draws and losses from 2009 to the present day was particularly revealing. <b>One can clearly observe a fundamental shift in the team's results beginning in 2011</b>, immediately following the arrival of "Cholo" Simeone.
+							Nevertheless, the data also highlights areas for improvement. <b>The best performance metrics were recorded during the 2013/14 season, and the team has not consistently reached those levels since</b>. While the stats have slightly declined, considering the constant competition against two of the greatest clubs of all time (<i>Real Madrid</i> and <i>Barcelona</i>), <b>the overall results remain promising</b>.<br>
+							A key finding from the metrics is that <b>defense is the most critical variable</b>. The average goals scored per match remains relatively stable across seasons (with minor variations), while <b>the average goals conceded is the element that primarily drags down the average goal difference</b>. I observed a general upward trend in the goals conceded metric over recent seasons.<br><br>
+							<b>Recommendation</b>: My data-driven recommendation for Atlético de Madrid would be to <b>prioritize the recruitment of top-tier defenders</b>. Strengthening the defensive line is crucial for the strategic shift the team appears to be attempting and will directly improve the average goal difference metric.<br>
+							<hr />
+							This concludes my first extended Data Analysis project. I am extremely satisfied with the knowledge and skills I have gained. I hope you found the analysis insightful. Thank you for reading. All project files, including the SQL queries, Python code, the PowerBI proyect and the Results Data Table, <b>are available through the GitHub repository</b> (<i>by clicking the button below</i>). I look forward to continued learning and investigating different kinds of data in my next project.
+						</p>
+						<div id = "conclusions">
+							<div class="actions">
+								<a href="https://github.com/Lolo171312/AtleticoMadrid_DataAnalysis" class="button">View the Project</a>
+							</div>
+						</div>
+					</div>
+				</section>
+
+			<!-- Footer -->
+				<footer id="footer">
+					<ul class="icons">
+						<li><a href="https://github.com/Lolo171312" class="icon brands fa-github"><span class="label">Github</span></a></li>
+						<li><a href="https://www.linkedin.com/in/mibanezgasca" class="icon brands fa-linkedin"><span class="label">LinkedIn</span></a></li>
+					</ul>
+					<ul class="copyright">
+						<li>&copy; All rights reserved.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
+					</ul>
+				</footer>
+
+		</div>
+
+		<!-- Scripts -->
+			<script src="assets/js/jquery.min.js"></script>
+			<script src="assets/js/jquery.dropotron.min.js"></script>
+			<script src="assets/js/jquery.scrollex.min.js"></script>
+			<script src="assets/js/browser.min.js"></script>
+			<script src="assets/js/breakpoints.min.js"></script>
+			<script src="assets/js/util.js"></script>
+			<script src="assets/js/main.js"></script>
+
+	</body>
+</html>
