@@ -2460,6 +2460,19 @@
 			padding: 0 1.5em 1em 0;
 			top: 0.25em;
 		}
+		
+		.image.left.center {
+		    float: none !important;
+			display: block !important;
+			margin-left: auto !important;
+			margin-right: auto !important;
+			text-align: center !important;
+			display: block !important;
+			margin-left: auto !important;
+			margin-right: auto !important;
+    		justify-content: center !important;
+		}
+
 
 		.image.right {
 			float: right;
@@ -2477,6 +2490,20 @@
 				display: block;
 				width: 100%;
 			}
+
+		.image.centered {
+    		display: block;
+    		margin: 1em auto;
+    		width: fit-content;
+		}
+
+
+			.image.centered img {
+				width: 100%;  /* Se adapta al max-width del contenedor, no se estira más */
+				height: auto;
+				border-radius: 6px;
+			}
+
 
 /* List */
 

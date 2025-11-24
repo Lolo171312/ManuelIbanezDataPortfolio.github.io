@@ -1,0 +1,322 @@
+<!DOCTYPE HTML>
+<!--
+	Alpha by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>Lego Analysis</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="assets/css/main.css" />
+	</head>
+	<body class="is-preload">
+		<div id="page-wrapper">
+
+			<!-- Header -->
+				<header id="header">
+					<h1><a href="index.html">Manuel Ibáñez</a> | Portfolio</h1>
+					<nav id="nav">
+						<ul>
+							<li><a href="index.html">Home</a></li>
+						</ul>
+					</nav>
+				</header>
+
+			<!-- Main -->
+				<section id="main" class="container">
+					<header>
+						<h2>Lego Themes Analysis</h2>
+						<p>Lego themes and prices analysis using Python, SQL and Power BI</p>
+					</header>
+					<div class="box">
+						<span class="image featured"><img src="images/LegoProject/legobackground.jpg" alt="" /></span>
+						<p>Have you ever wondered which Lego Theme boasts the most sets, or which theme consistently features the biggest and most complex builds? I did, and that curiosity motivated me to conduct this comprehensive data analysis.<br>
+						To achieve this, <b>I first compiled a dataset containing every currently available Lego set from the official <a href="https://www.lego.com/en-es">LegoShop website</a></b>. The goal was to transform this raw data into actionable insights that I will be sharing throughout this portfolio.<br>
+						This project demonstrates my end-to-end data skills, utilizing <b>Python</b> for data collection and cleaning, <b>SQL</b> for complex analytical queriess and <b>PowerBI</b> for visualization and presentation of the final findings and conclusions.</p>
+						<div class="row">
+							<div class="row-6 row-12-mobilep">
+								<h3>Python</h3>
+								<p>The initial phase of this project involved <b>Web Scraping the official Lego Shop website</b>. This task presented an interesting technical challenge due to the site's architecture.<br>
+								Unlike typical static websites, <b>the Lego Shop is built using React</b>, employing client-side rendering. Consequently, a standard <code>requests</code> library call, as used in previous analyses, only retrieved the initial HTML skeleton, failing to capture the dynamically loaded set data. <b>To overcome this, I used <code>Selenium</code></b>. By simulating a user's browser environment, Selenium allowed me to open the target webpage and wait for the full content to be rendered before extracting the complete and generated HTML. This technique was essential for accessing the accurate dataset.<br>
+								Using this method, <b>I successfully implemented a robust collection loop</b>, I iterated through every theme listed on the main themes-page.<br>
+								Within each theme, I navigated and looped through every pagination page, systematically collecting the required data points for every available set: <strong>Theme</strong>, <strong>Set Name</strong>, <strong>Age Rate</strong>, <strong>Number of Pieces</strong>, <strong>Rating</strong> and <strong>Price</strong>.
+								<pre>
+	def getThemeData(theme_link):
+    #Create the theme page URL
+    theme_url = base_url + theme_link
+
+    #Load theme´s main page
+    soup = loadPage(theme_url)
+    #Get every set from the main page
+    set_index = getSetsData(soup, 0)
+    
+    #Get every theme´s page link
+    pages = soup.find('div', class_='Paginationstyles__PageLinks-sc-16f0qal-6 dDoDHg')
+    #Check if the theme has more than 1 page
+    if pages:    
+        for page in pages.find_all('a')[1:]:
+            #Get the new page link
+            theme_url = base_url + page['href']
+            #Load the new page
+            soup = loadPage(theme_url)
+            #Get every set from the new page
+            set_index = getSetsData(soup, set_index)
+    else:
+        print(f"There is only 1 page for this theme({theme_title})")
+
+    return set_index
+								</pre>
+								<pre>
+	def getSetsData(loaded_page, current_index):
+    #Get sets table from the loaded page
+    sets = loaded_page.find("ul", id="product-listing-grid")
+
+    #Loop through every element in the table
+    for theme_set in sets.find_all("li", class_="Grid_grid-item__Dguxr"):
+        current_set_data = [None, None, None, None, None, None]
+        #Get set´s title
+        current_set_data[0] = theme_title #Set in data_list
+        title = theme_set.find("span", class_="markup")
+        if title:
+            current_set_data[1] = title.get_text(strip=True) #Set in data_list
+        #Get stats (Age, Pieces, Rating)
+        stats = theme_set.find("div", class_="ProductLeaf_attributesRow__jVFRa")
+        if stats:
+            stat_index = 2
+            for stat in stats.find_all("span"):
+                text = stat.get_text(strip=True)
+                if not text:
+                    continue
+                if any(char.isdigit() for char in text):  
+                    current_set_data[stat_index] = text #Set in data_list
+                stat_index += 1
+        #Get the price                    
+        price_block = theme_set.find("div", class_ = 'ProductLeaf_priceRow__kwpxi')
+        if price_block:
+            price_text = price_block.find("span")
+            if price_text:
+                current_set_data[5] = price_text.get_text(strip=True) #Set in data_list
+        if current_set_data[1] is not None and current_set_data[5] is not None:
+            df.loc[current_index + data_frame_index] = current_set_data
+            current_index += 1
+
+    return current_index
+								</pre>
+								<hr>
+								Once the raw dataset was compiled, the next crucial step was <b>cleaning and transforming the data</b> to ensure accuracy and relevance for SQL querying and PowerBI visualization. Although the initial data was relatively clean, several adjustments were necessary:
+								<ul>
+								<li>
+									<b>Text Cleanup:</b> I removed redundant branding elements such as "Lego", "®" and "™" from the Theme and Set Name columns to focus solely on the product identifier.
+									<pre>
+df["Theme"] = df["Theme"].str.replace("®", "", regex=False)
+df["Theme"] = df["Theme"].str.replace("™", "", regex=False)
+df["Theme"] = df["Theme"].str.replace("LEGO", "", regex=False)
+df["Theme"] = df["Theme"].str.strip()
+									</pre>
+								</li>
+								<li>
+									<b>Type Conversion:</b> Critical columns like <strong>Price</strong> and <strong>Number of Pieces</strong> were converted from strings <code>text (strings)</code> into <code>whole numbers (integers)</code> to enable mathematical aggregation and analysis in SQL.
+									<pre>
+df["Price"] = df["Price"].str.replace("€", "", regex=False)
+df["Price"] = df["Price"].str.replace(",", ".", regex=False)
+df["Price"] = df["Price"].astype(float)
+									</pre>
+								</li>
+								<li>
+									<b>Age Standardization:</b> The <strong>Age Rate</strong> column contained mixed values <code>(e.g., "7+", "4+", "6-12")</code>. I standardized this by extracting only the minimum age <code>(e.g., converting "7+" to 7, and "6-12" to 6)</code> and converting these to whole numbers. This allowed the data to be properly used for calculating the Average Age per theme.
+									<pre>
+df["Age"] = df["Age"].str.replace("+", "", regex=False)
+
+df["Age"] = df["Age"].str.replace("½", "", regex=False)
+df["Age"] = df["Age"].str.replace("6-12", "6", regex=False)
+df["Age"] = df["Age"].str.replace("4-99", "4", regex=False)
+df["Age"] = df["Age"].str.replace("7-12", "7", regex=False)
+df["Age"] = df["Age"].str.replace("2-6", "2", regex=False)
+df["Age"] = df["Age"].str.replace("3-5", "3", regex=False)
+df["Age"] = df["Age"].str.replace("5-12", "5", regex=False)
+									</pre>
+								</li>
+								</ul>
+								After these systematic cleaning and transformation steps, the dataset was finalized and <b>ready to be pushed to SQL for complex analysis</b> and insight generation.</p>
+							</div>
+							<div class="row-6 row-12-mobilep">
+								<h3>SQL</h3>
+								<p>Having cleaned and structured the data, the next critical step was leveraging SQL to perform complex aggregations and answer the core questions of the analysis. This phase allowed me to challenge initial assumptions about Lego pricing, volume, and audience targeting.</p>
+								<hr>								
+								<h4>Which Theme has the highest price per piece (PPP)?</h4>
+								<p>
+									I initially hypothesized that themes with licensing fees, such as Star Wars or The Lord of the Rings, would dominate. However, the initial results pointed to <b>Education</b> and <b>Powered Up</b>. This high PPP was due to the inclusion of expensive, low-piece elements like batteries and electronic components, where <b>a single 'piece' could cost around €35</b>.
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_1.png" alt="" /></span>
+								<p>
+									To refine the analysis, I implemented a filter to exclude all sets with less than two pieces. This correction revealed a new leader: <b>Duplo</b>. The probable reason lies in the <b>uniqueness and size of Duplo pieces, which are large and specific to their sub-themes</b> (Duplo, Duplo Peppa Pig), elevating the cost relative to standard brick dimensions.<br>
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_1_1.png" alt="" /></span>
+								<p>
+									While <b>piece rarity emerged as the primary driver</b>, I conducted a final verification to assess license impact by comparing four specific themes (Star Wars, City, Batman, and Ninjago). I found that <b>Star Wars and Batman were noticeably more expensive per piece than City and Ninjago</b>. This suggests that while piece rarity accounts for most of the PPP variance, the licensing fee does contribute a small, yet significant, premium. Extrapolating this difference, a 2.000 pieces Star Wars set would cost approximately €250, compared to around €185 for an equivalent City set. This difference is substantial enough to influence purchasing decisions.
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_1_2.png" alt="" /></span>
+								<hr>
+								<h4>Which Theme boasts the most sets?</h4>
+								<p>
+									After ensuring data integrity by removing non-set items (<i>pens, keyrings, backpacks, etc.</i>), <b>Lego City took the lead with <i>74 sets</i>, narrowly beating Star Wars (<i>71 sets</i>)</b>. The third-place themes, <b>Technic and Disney, trailed far behind with <i>57 sets</i> each</b>. <br>
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_2.png" alt="" /></span>
+								<p>
+									While Star Wars might have the highest total product count (<i>if we were also counting keyrings, pens, etc.</i>), the City theme, a beloved and long-running theme first released in 1978 that focuses on simulating real-world scenarios (police, doctors, firefighters), secures the top spot highlighting <b>Lego's commitment to maintaining a robust and evergreen presence in the core play market</b>.
+								</p>
+								<hr>
+								<h4>Theme with the most expensive average set price</h4>
+								<p>
+									The query <b>initially identified Serious Play</b>, which is not a consumer theme but rather a specialist tool used in professional development and therapy.<br>
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_3.png" alt="" /></span>
+								<p>
+									After excluding this outlier, <b>The Lord of the Rings emerged as the most expensive theme</b>. This is unsurprising given its low volume (<i>only 4 sets</i>), all of which carry a high entry price (<i>cheapest being €120</i>). This data suggests a clear market segmentation strategy: <b>Lego targets the affluent Adult Fan of Lego (<i>AFOL</i>) audience for limited, high-value themes</b> like The Lord of the Rings, whereas broad themes like Star Wars or Batman <i>cater to a much wider spectrum of financial situations</i>, ranging from small sets (<i>€15.99</i>) to massive collector sets (<i>€999.99</i>).
+								</p>
+								<hr>
+								<h4>What Themes have the highest average Age?</h4>
+								<p>
+									While there is a <b>correlation between high price and older customers, the results showed the relationship is more nuanced</b>. While The Lord of the Rings was predictably high, other <b>themes like Art and Botanical Collection also topped the list, despite having moderate price points</b>. This reveals that <b>the set's intended functionality, not just its price or piece count, is a key determinant of the age rating</b>.<br>
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_4.png" alt="" /></span>
+								<p>
+									These themes are designed for adult decoration and mindful building rather than traditional play, attracting former child builders seeking a different kind of engagement in their adult phase.
+								</p>
+								<hr>
+								<h4>Which theme has the highest average Rating?</h4>
+								<p>
+									The query surprisingly yielded ambiguous results. The range of average ratings was narrow, spanning from a high of 4.87 to a low of 3.49, <b>indicating overall customer satisfaction is generally high</b> across the entire catalogue.<br>
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_5.png" alt="" /></span>
+								<p>
+									<b>The top spots were unexpectedly claimed by themes focused on younger audiences, specifically <i>Duplo: Peppa Pig</i> and <i>Animal Crossing</i></b>. While this might suggest younger audiences are easier to satisfy, this hypothesis is immediately complicated by Duplo itself being closer to the middle of the ranking and Bluey near the bottom.<br>
+									Furthermore, popular themes like Star Wars landing in the 38th position, or low-volume themes like The Lord of the Rings (37th position) being poorly rated compared to The Legend of Zelda (just 1 set for €299.99 and highly rated), <b>shows that simple rules (like price or set count) do not dictate rating success</b>. Themes with a wide price spectrum often attract varied expectations, potentially leading to varied ratings, yet themes like City or Ninjago rank highly despite having a broad range.<br>
+									My conclusion is while <b>there is no a clear correlation between set size or target age and rating</b>, the data suggests that <b>customer expectation is highly correlated with set size</b>. Users tend to be more forgiving and rate smaller sets better, while larger, more expensive builds are subjected to much higher critical scrutiny.<br><br>
+									To support the hypothesis regarding customer expectations, I used the <b>Pearson Correlation Coefficient to analyze the relationship between Rating and Number of Pieces per set</b>.The formula yields a value between <i>1</i> (<i>perfect positive correlation</i>) and <i>-1</i> (<i>perfect negative correlation</i>). The result of the query was <i>-0.31</i>. While this indicates a weak correlation, the negative value confirms the tendency: <b>as the number of pieces increases, the average rating tends to slightly decrease</b>. This statistically reinforces the idea that customers are more demanding and critical when reviewing larger and more expensive sets.
+								</p>
+							</div>
+							<div class="row-6 row-12-mobilep">
+								<pre>
+WITH CorrelationData AS (
+    SELECT Rating AS X, (Price * 1.0) / Pieces AS Y FROM setstable
+    WHERE Price IS NOT NULL AND Pieces > 0 AND Rating IS NOT NULL
+)
+SELECT
+    SUM((T.X - T_AVG.Avg_X) * (T.Y - T_AVG.Avg_Y)) /
+    (
+        COUNT(T.X) * STDDEV_POP(T.X) * STDDEV_POP(T.Y)
+    ) AS Coefficient_Correlation_R
+FROM CorrelationData T
+CROSS JOIN (SELECT AVG(X) AS Avg_X, AVG(Y) AS Avg_Y FROM CorrelationData) AS T_AVG;
+#Coefficient = -0.3 -> There is no particular correlation
+								</pre>
+							</div>
+							<div class="row-6 row-12-mobilep">
+								<hr>
+								<h4>What is the average number of pieces per Theme?</h4>
+								<p>
+									The question aimed to determine the typical set size within each line.
+									<b>The Lord of the Rings unsurprisingly led the list</b> due to its low volume of high-piece sets. However, <b>the analysis provides deeper insights into broader themes</b>:
+									<ul>
+										<li>
+											<strong>High-End Targeting</strong>: Themes like Star Wars and Batman, despite featuring massive sets (<i>>4,000 pieces</i>), maintain an average piece count around 1,100. This demonstrates a dual client strategy: <b>serving both the young fan who wants a smaller, affordable model and the adult collector who demands large display pieces</b>.
+										</li>
+										<li>
+											<strong>Core Audience Focus</strong>: Conversely, City and Marvel maintain a low average piece count (<i>around 550</i>), indicating a <b>primary focus on younger audiences and play value</b>. This is further proven by themes at the bottom of the list, such as Duplo and Bluey.
+										</li>
+									</ul>
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_6.png" alt="" /></span>
+								<hr>
+								<h4>Theme with the highest standard deviation (variance) in price</h4>
+								<p>
+									This variance is the <b>best indicator of a theme attempting to appeal to the widest possible range of target audiences</b>.<br>
+									The query successfully demonstrated that <b>Star Wars is the theme with the widest price variation (<i>from €9.99 to €999.99</i>)</b>, closely followed by Batman. This confirms their broad strategy targeting both children (<i>low price</i>) and collectors (<i>high price</i>).
+									Surprisingly, <b>Marvel and Ninjago also ranked high</b>. Although they are primarily aimed at younger audiences with low average prices, <b>they both feature particular and highly expensive sets for older clients</b> (<i>up to €499.99 and €369, respectively</i>).
+								</p>
+									<span class="image centered"><img src="images/LegoProject/sql_table_7.png" alt="" /></span>
+								<p>
+									Conversely, <b>themes at the bottom of the table, like TLOR and Duplo: Peppa Pig, have very low price variance</b>. This confirms that <b>these themes successfully target a very specific audience</b>: adults with disposable income (TLOR) or infants (Duplo), with little deviation from that price strategy.
+								</p>
+								<hr>
+								<p>
+									With the completion of these queries, the SQL analysis phase is concluded. Each query yielded unique, interesting and relevant insights that challenge initial assumptions. The next step is to transition this validated and enriched data into PowerBI to create the visualizations necessary for easier comprehension.
+								</p>
+							</div>
+							<div class="row-6 row-12-mobilep">
+								<h3>Power BI</h3>
+								<p>
+									The final stage of the project involved <b>transitioning the validated and enriched dataset into PowerBI</b> to create a compelling and interactive narrative. The goal of this phase was to <b>visualize the complex relationships discovered during the SQL analysis</b>, making the data accessible and actionable.
+								</p>
+								<h4>Dashboard Design and Structure</h4>
+								<p>
+									The analysis was organized into three distinct pages, each focused on a specific analytical objective:
+									<ul>
+										<li>
+											<b>Market Ranking</b>: This primary dashboard immediately highlighted the <b>themes dominating the market in terms of volume (sets) and efficiency (Price per Piece)</b>. KPI cards were used at the top to establish the baseline Average Price per Piece and Total Set Count. Horizontal bar charts visually demonstrated the competitive rankings, quickly revealing Education’s high PPP and City’s volume leadership.
+											<span class="image fit"><img src="images/LegoProject/powerbi_1.png" alt="" /></span>
+										</li>
+										<li>
+											<b>Volatility and Correlation</b>: This advanced page focused on the nuance in the data. <b>The Scatter Plot was the most important chart of the page, visualizing the correlation between Average Rating and Average Set Price</b> . This plot clearly showed themes clustering in the 'high-premium' quadrant (e.g., The Lord of the Rings), statistically supporting the <i>-0.31 standard deviation coefficient</i> finding that customers are more critical of expensive sets. Crucially, a <b>Coefficient of Variation (CV) table was used to clearly identify Star Wars as the theme with the highest price volatility</b>, demonstrating its strategy of targeting multiple financial segments.
+											<span class="image fit"><img src="images/LegoProject/powerbi_2.png" alt="" /></span>
+										</li>
+										<li>
+											<b>Extreme Sets</b>: A dedicated detail page was created to provide context for the outliers driving the high price averages and standard deviations. <b>This table was filtered to show the most expensive set in each theme</b> allowed stakeholders to see the exact product names and specifications responsible for the analyzed trends.
+											<span class="image fit"><img src="images/LegoProject/powerbi_3.png" alt="" /></span>
+										</li>
+									</ul>
+									To maximize utility I used button slicers to <b>allow users to dynamically filter the entire report by Age Segment or Price Segment</b>. This visualization layer transformed the raw SQL conclusions into a clear and interactive decision-making tool.
+								</p>
+							</div>
+							<div class="row-6 row-12-mobilep">
+								<h3>Final Conclusions</h3>
+								<p>
+									This concludes the comprehensive Lego Data Analysis. Looking back, this project proved to be invaluable for two distinct, yet complementary, reasons:
+									<ol>
+										<li>
+											<b>Professional Development</b>: As an aspiring Data Analyst, <b>the project provided a crucial end-to-end practical application</b> of my technical stack. By leveraging <b>Python/Selenium</b> to overcome sophisticated web architecture challenges, utilizing <b>SQL</b> for rigorous statistical verification and deploying <b>PowerBI</b> for dynamic reporting, I significantly advanced my skills in generating, validating and communicating data-driven conclusions.
+										</li>
+										<li>
+											<b>Subject Matter Insight</b>: On a personal level, <b>as an avid Lego enthusiast, the analysis was profoundly revealing</b>. I now possess a <b>deeper and data-backed understanding of the company’s market strategies</b> including: why certain themes command a higher price-per-piece, the role of licensing fees versus piece rarity and how sets are strategically priced and aged to target specific audience segments.
+										</li>
+									</ol>
+									In summary, <b>this analysis successfully transformed personal curiosity into professional insight</b>. Thank you for taking the time to review this project. All files related to this study (<i>Python scripts, the SQL queries, the PowerBI file and the final enriched data table</i>) are available via the link below for further inspection.
+								</p>
+							</div>
+						</div>
+							<div id = "conclusions">
+								<div class="actions">
+									<a href="https://github.com/Lolo171312/Lego-Analysis" class="button">View the Project</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
+
+			<!-- Footer -->
+				<footer id="footer">
+					<ul class="icons">
+						<li><a href="https://github.com/Lolo171312" class="icon brands fa-github"><span class="label">Github</span></a></li>
+						<li><a href="https://www.linkedin.com/in/mibanezgasca" class="icon brands fa-linkedin"><span class="label">LinkedIn</span></a></li>
+					</ul>
+					<ul class="copyright">
+						<li>&copy; All rights reserved.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
+					</ul>
+				</footer>
+
+		</div>
+
+		<!-- Scripts -->
+			<script src="assets/js/jquery.min.js"></script>
+			<script src="assets/js/jquery.dropotron.min.js"></script>
+			<script src="assets/js/jquery.scrollex.min.js"></script>
+			<script src="assets/js/browser.min.js"></script>
+			<script src="assets/js/breakpoints.min.js"></script>
+			<script src="assets/js/util.js"></script>
+			<script src="assets/js/main.js"></script>
+
+	</body>
+</html>
